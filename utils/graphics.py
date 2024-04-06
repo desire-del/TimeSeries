@@ -3,6 +3,7 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import statsmodels.api as sm
 import plotly.express as px
+import pandas as pd
 
 @st.cache_data
 def plotTs(df):
@@ -48,4 +49,53 @@ def plotDecompse(df):
         col = 1,
         
     )
+    return fig
+
+@st.cache_data
+def plotForcast(df, pred, confint):
+    fig = go.Figure()
+    fig.add_trace(
+        go.Line(
+            x = df.index,
+            y = df.data,
+            name= "Observed"
+        )
+    )
+    fig.add_trace(
+        go.Line(
+            x = pred.index,
+            y = pred,
+            name="Prediction",
+            line=dict(color='rgba(255,0,0,1)'),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x =confint.index,
+            y = confint["lower data"],
+            mode="lines",
+            line=dict(color='rgba(0,100,80,0.2)'),
+            showlegend=False
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x =confint.index,
+            y = confint["upper data"],
+            mode="lines",
+            line=dict(color='rgba(0,100,80,0.2)'),
+            showlegend=False
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x = confint.index.union(confint.index[::-1]),
+            y = pd.concat([confint["lower data"],confint["upper data"][::-1]]),
+            fill='tonexty',
+            fillcolor='rgba(0,100,80,0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            showlegend=False
+        )
+    )
+    
     return fig
