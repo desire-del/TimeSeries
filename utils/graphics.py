@@ -25,8 +25,7 @@ def plotTs(df):
 
 @st.cache_data
 def plotDecompse(df):
-    decomp = sm.tsa.STL(df)
-    decomp =decomp.fit()
+    decomp = sm.tsa.seasonal_decompose(df)
     resid = decomp.resid
     trend = decomp.trend
     seasonal = decomp.seasonal

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from .constants import FREQ_DICT
 import streamlit as st
 from statsmodels.tsa.stattools import adfuller, acf
 
