@@ -1,12 +1,13 @@
 import os
 import streamlit as st 
 import pandas as pd
+import numpy as np
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from utils.dataprocess import load_data, df_col, numberOfDiff
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from utils.graphics import plotDecompse, plotTs
-from models.arima import SARIMAXGridSearch
+from models.arima import SARIMAXGridSearch, white_noise_test, valid_model
 from utils.constants import DEFAULT_DATASETS_DIR, FREQ_DICT
 
 # App title
@@ -25,11 +26,9 @@ if upload_file is not None:
     data_url = upload_file
     
 cols = df_col(data_url)
-col1, col2 = sider.columns(2)
-with col1:
-    date_col =sider.selectbox("Date", options=cols)
-with col2:
-    data_col = sider.selectbox("Data", options=[c for c in cols if c!=date_col])
+
+date_col =sider.selectbox("Date", options=cols)
+data_col = sider.selectbox("Data", options=[c for c in cols if c!=date_col])
 try:
     df = load_data(data_url, date_col,data_col)
 except:
@@ -47,12 +46,19 @@ if freq is None:
 else:
     df = df.asfreq(freq=freq, method='bfill')
 
+# Save a copy of the dataframe
+df_copy = df.copy()
+# Data Transformation
+sider.divider()
+sider.write("Data tranformation")
+apply_log = sider.toggle("Apply log")
+if apply_log:
+    df["data"]  = np.log(df["data"])
+    df = df.dropna()
 # Graphics
 st.subheader("Visualize your Time Series")
 
-st.write(df.isna().sum())
-
-obs, decomp, pacf_acf = st.tabs(['Observed', "Decomposition", "PACF AND ACF"])
+obs, decomp, season,pacf_acf = st.tabs(['Observed', "Decomposition","SEASONALITY","PACF AND ACF"])
 d , df_diff= numberOfDiff(df.data)
 with obs:
     fig1 = plotTs(df)
@@ -60,44 +66,48 @@ with obs:
 with decomp:
     fig2 = plotDecompse(df)
     st.plotly_chart(fig2)
-    
+with season:
+    fig1, ax = plt.subplots()
+    lags = st.number_input(label="Lags ", min_value=25, max_value=len(df)-1, step=5, format='%u')
+    plot_acf(df, lags=lags, ax=ax)
+    st.pyplot(fig1)
 with pacf_acf:
-    fig, (ax1, ax2) = plt.subplots(nrows=2,ncols=1)
-    plot_acf(df_diff,  ax=ax1)
-    plot_pacf(df_diff,  ax=ax2)
-    st.pyplot(fig)
+    fig2, (ax1, ax2) = plt.subplots(nrows=2,ncols=1)
+    plot_acf(df,  ax=ax1)
+    plot_pacf(df,  ax=ax2)
+    st.pyplot(fig2)
 
 sider.divider()
 # Models selections
 
 options = sider.multiselect(
-    'Models',options=["ARIMA"])
+    'Models',options=["ARIMA", "SARIMA"])
 
 for option in options:
     if option == "ARIMA":
         st.divider()
+        sider.divider()
+        sider.subheader("ARIMA")
         st.subheader("ARIMA")
-        p = st.slider("P", min_value=0, max_value=20, value=1)
-        q = st.slider("Q", min_value=0, max_value=20, value=1)
-        st.write(d)
         result = None
-        if st.checkbox("Turning"):
-            pmin = st.slider("P min", min_value=0, max_value=10, value=0)
-            pmax = st.slider("P max", min_value=pmin, max_value=pmin+15, value=pmin+10)
-            qmin = st.slider("Q min", min_value=0, max_value=10, value=0)
-            qmax = st.slider("Q max", min_value=qmin, max_value=qmin+15, value=qmin+10)
-            ps = range(pmin, pmax+1)
-            ds = range(d, d+1)
-            qs = range(qmin, qmax+1)
-            if st.button("Find Best Model"):    
-                result, best_score, best_param = SARIMAXGridSearch.search(df, ps, ds, qs)
-                st.write(result, best_score, best_param)
-        else:
-            if st.button("Train"):
-                model = sm.tsa.ARIMA(df, order=(p,d, q))
-                result = model.fit()
+        p_range = sider.slider("P Range",min_value=0, max_value=30, value=[0, 0])
+        q_range = sider.slider("Q Range",min_value=0, max_value=30, value=[0, 0])
+        ps = range(p_range[0], p_range[1]+1)
+        ds = range(d, d+1)
+        qs = range(q_range[0], q_range[1]+1)
+        if sider.button("Train"):    
+            result, best_score, best_param = SARIMAXGridSearch.search(df, ps, ds, qs)
+            st.write(result, best_score, best_param)
         if result:
             with st.expander("Model Diagnostics"):
                 st.write(result.plot_diagnostics())
-            with st.expander("Model Summary"):
-                st.write(result.summary())
+            with st.expander("Model Validation"):
+                lb = float(result.summary().tables[2].data[1][1])
+                jb = float(result.summary().tables[2].data[1][3])
+                st.markdown(f'<h3>Ljung-Box Test : {lb}</h3>', unsafe_allow_html=True)
+                st.markdown(f'<h3>Jarque-Box Test : {jb}</h3>', unsafe_allow_html=True)
+                color, label = ("green", "Validate") if valid_model(lb, jb) else ("red", "Reject")
+                st.markdown(f'<h3 style="color:{color};">Decision : {label}</h3>', unsafe_allow_html=True)
+                
+    if option == "SARIMA":
+        continue

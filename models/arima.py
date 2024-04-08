@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st 
 import statsmodels.api as sm
 from itertools import product
+from scipy import stats
 from stqdm import stqdm
 """
 @st.cache_data
@@ -43,4 +44,16 @@ class SARIMAXGridSearch:
                 continue 
         return best_result, best_score, best_param
             
-    
+@st.cache_data
+def white_noise_test(resid):
+    res = sm.stats.acorr_ljungbox(resid)
+    print(res)
+    lb = res[1]
+    res = stats.jarque_bera(resid)
+    print(res)
+    jb = res[1]
+    return lb, jb
+
+@st.cache_data
+def valid_model(lb, jb):
+    return lb >= 0.05 and jb >= 0.05

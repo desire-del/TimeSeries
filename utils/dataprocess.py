@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from .constants import FREQ_DICT
+from .constants import FREQ_DICT, P_VALUE_THRESHOLD
 import streamlit as st
 from statsmodels.tsa.stattools import adfuller, acf
 
@@ -21,7 +21,7 @@ def load_data(file_url, date_col, data_col):
 @st.cache_data
 def isStatinary(y):
     res = adfuller(y)
-    return True if res[1] <= 0.05 else False
+    return True if res[1] <= P_VALUE_THRESHOLD else False
 
 @st.cache_data
 def numberOfDiff(y):

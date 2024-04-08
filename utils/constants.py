@@ -2,6 +2,8 @@ import os
 
 DEFAULT_DATASETS_DIR = os.path.join(os.getcwd(), "data/")
 
+P_VALUE_THRESHOLD = 0.05
+
 FREQ_DICT = {
     'Annual': 'A',
     'Monthly': 'M',
