@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 import plotly.express as px
 import pandas as pd
+import matplotlib.pyplot as plt
 
 @st.cache_data
 def plotTs(df):
@@ -68,7 +69,8 @@ def plotForcast(df, pred, confint):
             line=dict(color='rgba(255,0,0,1)'),
         )
     )
-    fig.add_trace(
+    if confint:
+        fig.add_trace(
         go.Scatter(
             x =confint.index,
             y = confint["lower data"],
@@ -76,25 +78,43 @@ def plotForcast(df, pred, confint):
             line=dict(color='rgba(0,100,80,0.2)'),
             showlegend=False
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x =confint.index,
-            y = confint["upper data"],
-            mode="lines",
-            line=dict(color='rgba(0,100,80,0.2)'),
-            showlegend=False
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x = confint.index.union(confint.index[::-1]),
-            y = pd.concat([confint["lower data"],confint["upper data"][::-1]]),
-            fill='tonexty',
-            fillcolor='rgba(0,100,80,0.2)',
-            line=dict(color='rgba(255,255,255,0)'),
-            showlegend=False
+        fig.add_trace(
+            go.Scatter(
+                x =confint.index,
+                y = confint["upper data"],
+                mode="lines",
+                line=dict(color='rgba(0,100,80,0.2)'),
+                showlegend=False
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x = confint.index.union(confint.index[::-1]),
+                y = pd.concat([confint["lower data"],confint["upper data"][::-1]]),
+                fill='tonexty',
+                fillcolor='rgba(0,100,80,0.2)',
+                line=dict(color='rgba(255,255,255,0)'),
+                showlegend=False
+            )
+        )
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1 Day", step="day", stepmode="backward"),
+                dict(count=1, label="1 Month", step="month", stepmode="backward"),
+                dict(count=3, label="3 Month", step="month", stepmode="backward"),
+                dict(count=1, label="1 Year", step="year", stepmode="backward"),
+                dict(step="all")
+            ])
         )
     )
     
     return fig
+
+def visualize_coefficients(coefs, names, ax):
+    ax.bar(names, coefs)
+    ax.set(xlabel='Coefficient name', ylabel='Coefficient value')
+    plt.setp(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
+    return ax

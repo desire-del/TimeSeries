@@ -4,11 +4,14 @@ import pandas as pd
 import numpy as np
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-from utils.dataprocess import load_data, df_col, numberOfDiff
+from utils.dataprocess import load_data, df_col, numberOfDiff, create_features
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from utils.graphics import plotDecompse, plotTs, plotForcast
-from models.arima import SARIMAXGridSearch, white_noise_test, valid_model, sarimax_forecast
+from models.arima import SARIMAXGridSearch, valid_model, sarimax_forecast
 from utils.constants import DEFAULT_DATASETS_DIR, FREQ_DICT
+import xgboost as xgb
+from models.xgboost import xgboost
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 
 # App title
 st.title("Time Series Forecasting Web App")
@@ -24,13 +27,19 @@ default_url = os.path.join(DEFAULT_DATASETS_DIR, default_data)
 data_url =default_url
 if upload_file is not None:
     data_url = upload_file
+    st.session_state.file_uploaded = True
+else:
+    st.session_state.file_uploaded = False
     
+if st.session_state.file_uploaded:
+    st.experimental_rerun()
 cols = df_col(data_url)
 
 date_col =sider.selectbox("Date", options=cols)
 data_col = sider.selectbox("Data", options=[c for c in cols if c!=date_col])
 try:
     df = load_data(data_url, date_col,data_col)
+    #st.caching.clear_cache()
 except:
     cols = df_col(default_url)
     df = load_data(default_url, date_col,data_col)
@@ -86,10 +95,9 @@ test = df.iloc[train_size:, :]
 
 
 # Models selections
-
 options = sider.multiselect(
     'Models',options=["ARIMA", "SARIMA", "XGBoost"])
-
+models = {}
 for option in options:
     if option == "ARIMA":
         st.divider()
@@ -102,8 +110,9 @@ for option in options:
         ps = range(p_range[0], p_range[1]+1)
         ds = range(d, d+1)
         qs = range(q_range[0], q_range[1]+1)
-        if sider.button("Train"):    
+        if sider.toggle("Train ARIMA"):    
             result, best_score, best_param = SARIMAXGridSearch.search(train, ps, ds, qs)
+            models[option] = result
             st.write(result, best_score, best_param)
             sarimax_pred, conf_int = sarimax_forecast(result, steps=len(test))
             test[option] = sarimax_pred
@@ -120,6 +129,24 @@ for option in options:
                 
     if option == "SARIMA":
         continue
+    if option == "XGBoost":
+        st.divider()
+        sider.subheader(option)
+        st.subheader(option)
+        max_depth= sider.slider("Max Depth",min_value=1, max_value=30, value=5)
+        lags= sider.slider("Lags features",min_value=1, max_value=30, value=5)
+        learning_rate= sider.number_input(label="Learning Rate ", min_value=0.0001, max_value=0.75, step=0.01, value=0.01)
+        n_estimators= sider.number_input(label="n_estimator ", min_value=100, max_value=5000, step=100, value=1000)
+        X_train, y_train = create_features(train,lags=lags)
+        X_test, y_test = create_features(pd.concat([train.iloc[-lags:,:], test["data"]]), lags=lags)
+        if sider.toggle("Train XGBoost"):
+            model_xgb = xgboost(X_train, y_train, max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators)
+            test[option] = model_xgb.predict(X_test)
+            xgb_fig, xgb_ax = plt.subplots()
+            xgb.plot_importance(model_xgb, ax = xgb_ax)
+            models[option] = model_xgb
+            st.pyplot(xgb_fig)
+        
 st.divider()
 st.subheader("Predicting")
 
@@ -128,9 +155,15 @@ if options:
 for idx, option in enumerate(options):
     if option in test.columns:
         with pred_tabs[idx]:
-            fig  = plotForcast(df, test[option], conf_int)
+            if apply_log:
+                test["data"] = test["data"].apply(np.exp)
+                test[option] = test[option].apply(np.exp)
+                fig  = plotForcast(df.apply(np.exp), test[option], confint=None)
+            else:
+                fig  = plotForcast(df, test[option], confint=None)
             st.plotly_chart(fig)
 
 
 # Model error
-
+metric_labels = []
+st.write(test)

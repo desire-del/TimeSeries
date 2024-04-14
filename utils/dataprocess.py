@@ -31,3 +31,24 @@ def numberOfDiff(y):
         diff = np.diff(diff)
         d = d+1
     return d, diff
+
+@st.cache_data
+def create_features(df, lags = 1):
+    """
+    Creates time series features from datetime index
+    """
+    df['date'] = df.index
+    df['hour'] = df['date'].dt.hour
+    df['dayofweek'] = df['date'].dt.dayofweek
+    df['quarter'] = df['date'].dt.quarter
+    df['month'] = df['date'].dt.month
+    df['year'] = df['date'].dt.year
+    df['dayofyear'] = df['date'].dt.dayofyear
+    df['dayofmonth'] = df['date'].dt.day
+    for i in range(1, lags):
+        df[f'lag_{i}'] = df["data"].shift(i)
+    df["target"] = df["data"].shift(lags)
+    df.dropna(inplace=True)
+    y = df[["target"]]
+    X = df.drop(columns=["target", "date"])
+    return X, y
