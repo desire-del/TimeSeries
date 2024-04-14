@@ -130,3 +130,7 @@ for idx, option in enumerate(options):
         with pred_tabs[idx]:
             fig  = plotForcast(df, test[option], conf_int)
             st.plotly_chart(fig)
+
+
+# Model error
+
