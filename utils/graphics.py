@@ -69,7 +69,7 @@ def plotForcast(df, pred, confint):
             line=dict(color='rgba(255,0,0,1)'),
         )
     )
-    if confint:
+    if confint is not None:
         fig.add_trace(
         go.Scatter(
             x =confint.index,

@@ -11,7 +11,8 @@ from models.arima import SARIMAXGridSearch, valid_model, sarimax_forecast
 from utils.constants import DEFAULT_DATASETS_DIR, FREQ_DICT
 import xgboost as xgb
 from models.xgboost import xgboost
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+import seaborn as sns
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 
 # App title
 st.title("Time Series Forecasting Web App")
@@ -112,9 +113,9 @@ for option in options:
         qs = range(q_range[0], q_range[1]+1)
         if sider.toggle("Train ARIMA"):    
             result, best_score, best_param = SARIMAXGridSearch.search(train, ps, ds, qs)
-            models[option] = result
             st.write(result, best_score, best_param)
             sarimax_pred, conf_int = sarimax_forecast(result, steps=len(test))
+            models[option] = (result, conf_int)
             test[option] = sarimax_pred
         if result:
             with st.expander("Model Diagnostics"):
@@ -144,26 +145,46 @@ for option in options:
             test[option] = model_xgb.predict(X_test)
             xgb_fig, xgb_ax = plt.subplots()
             xgb.plot_importance(model_xgb, ax = xgb_ax)
-            models[option] = model_xgb
+            models[option] = (model_xgb, None)
             st.pyplot(xgb_fig)
         
 st.divider()
-st.subheader("Predicting")
+st.subheader("Prediction")
 
 if options:
     pred_tabs = st.tabs(options)
+
 for idx, option in enumerate(options):
     if option in test.columns:
+        c = None
+        if option=="ARIMA":
+            c = conf_int
         with pred_tabs[idx]:
-            if apply_log:
-                test["data"] = test["data"].apply(np.exp)
-                test[option] = test[option].apply(np.exp)
-                fig  = plotForcast(df.apply(np.exp), test[option], confint=None)
-            else:
-                fig  = plotForcast(df, test[option], confint=None)
+            fig  = plotForcast(df, test[option], confint=c)
             st.plotly_chart(fig)
 
 
 # Model error
-metric_labels = []
-st.write(test)
+errors = {}
+metric_labels = ["MAE", "MAPE", "RMSE"]
+errors["Model"] = []
+errors["Type"] = []
+errors["error"] = []
+
+for option in options:
+    if option in test.columns:
+        mae = mean_absolute_error(test["data"], test[option])
+        mape = mean_absolute_percentage_error(test["data"], test[option])
+        rmse = root_mean_squared_error(test["data"], test[option])
+        errors["Model"].extend([option]*len(metric_labels))
+        errors["Type"].extend(metric_labels)
+        errors["error"].extend([mae, mape, rmse])
+sider.divider()
+
+if sider.toggle("Compare Models"):
+    st.divider()
+    st.subheader("Compare Models Errors")
+    errors_df = pd.DataFrame(errors)
+    erro_fig, ax = plt.subplots()
+    sns.barplot(data = errors_df, y="error", x = "Type",hue="Model")
+    st.pyplot(erro_fig)
