@@ -6,8 +6,8 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from utils.dataprocess import load_data, df_col, numberOfDiff
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from utils.graphics import plotDecompse, plotTs
-from models.arima import SARIMAXGridSearch, white_noise_test, valid_model
+from utils.graphics import plotDecompse, plotTs, plotForcast
+from models.arima import SARIMAXGridSearch, white_noise_test, valid_model, sarimax_forecast
 from utils.constants import DEFAULT_DATASETS_DIR, FREQ_DICT
 
 # App title
@@ -78,10 +78,17 @@ with pacf_acf:
     st.pyplot(fig2)
 
 sider.divider()
+
+# Split the df
+train_size = int(0.8*len(df))
+train = df.iloc[0:train_size,:]
+test = df.iloc[train_size:, :]
+
+
 # Models selections
 
 options = sider.multiselect(
-    'Models',options=["ARIMA", "SARIMA"])
+    'Models',options=["ARIMA", "SARIMA", "XGBoost"])
 
 for option in options:
     if option == "ARIMA":
@@ -96,8 +103,10 @@ for option in options:
         ds = range(d, d+1)
         qs = range(q_range[0], q_range[1]+1)
         if sider.button("Train"):    
-            result, best_score, best_param = SARIMAXGridSearch.search(df, ps, ds, qs)
+            result, best_score, best_param = SARIMAXGridSearch.search(train, ps, ds, qs)
             st.write(result, best_score, best_param)
+            sarimax_pred, conf_int = sarimax_forecast(result, steps=len(test))
+            test[option] = sarimax_pred
         if result:
             with st.expander("Model Diagnostics"):
                 st.write(result.plot_diagnostics())
@@ -111,3 +120,13 @@ for option in options:
                 
     if option == "SARIMA":
         continue
+st.divider()
+st.subheader("Predicting")
+
+if options:
+    pred_tabs = st.tabs(options)
+for idx, option in enumerate(options):
+    if option in test.columns:
+        with pred_tabs[idx]:
+            fig  = plotForcast(df, test[option], conf_int)
+            st.plotly_chart(fig)

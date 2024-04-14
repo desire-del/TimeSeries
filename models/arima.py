@@ -57,3 +57,10 @@ def white_noise_test(resid):
 @st.cache_data
 def valid_model(lb, jb):
     return lb >= 0.05 and jb >= 0.05
+
+#@st.cache_data
+def sarimax_forecast(model, steps):
+    forecat = model.get_forecast(steps=steps)
+    predicted = forecat.predicted_mean
+    confint = forecat.conf_int()
+    return predicted, confint
